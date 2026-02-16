@@ -1,35 +1,71 @@
-# catnip 🌿
+# catnip 🐱
 
-Go driver for SQL Server. pgx walked so catnip could run.
+Go `database/sql` driver for SQL Server, powered by [tabby](https://github.com/copycatdb/tabby).
 
-Part of [CopyCat](https://github.com/copycatdb) 🐱
+Part of the [CopyCat](https://github.com/copycatdb) project.
 
-## What is this?
+## Architecture
 
-A native Go driver for SQL Server using [tabby](https://github.com/copycatdb/tabby) via CGO. Implements `database/sql` interface because Go developers love interfaces almost as much as they love error handling.
+Catnip uses a Rust shared library (cdylib) that wraps tabby's TDS protocol implementation, exposed to Go via CGO. This gives you a pure `database/sql` interface with the performance of a native Rust TDS client.
+
+## Quick Start
 
 ```go
-import "github.com/copycatdb/catnip"
+import (
+    "database/sql"
+    _ "github.com/copycatdb/catnip"
+)
 
-db, err := sql.Open("sqlserver", "Server=localhost,1433;UID=sa;PWD=pass;TrustServerCertificate=yes")
-if err != nil {
-    // you know the drill
+func main() {
+    db, err := sql.Open("sqlserver",
+        "Server=localhost,1433;UID=sa;PWD=yourpassword;Database=mydb;TrustServerCertificate=yes")
+    if err != nil {
+        panic(err)
+    }
+    defer db.Close()
+
+    var name string
+    db.QueryRow("SELECT name FROM sys.databases WHERE database_id = 1").Scan(&name)
+    fmt.Println(name) // master
 }
-
-rows, err := db.QueryContext(ctx, "SELECT id, name FROM users WHERE id = @p1", 42)
 ```
 
-## Why not go-mssqldb?
+## Building
 
-go-mssqldb is fine. Its a pure Go TDS implementation. We respect that. But catnip uses tabby, which means one TDS implementation across every language. Fix a bug in tabby, every driver gets the fix. Thats the CopyCat way.
+### Prerequisites
 
-## Status
+- Go 1.22+
+- Rust (stable)
+- CGO enabled
 
-🚧 Coming soon.
+### Build
 
-## Attribution
+```bash
+# Build the native Rust library
+make build
 
-Inspired by [pgx](https://github.com/jackc/pgx), the Go Postgres driver that made us believe database drivers could actually be... pleasant? In Go?
+# Run tests (requires SQL Server on localhost:1433)
+make test
+
+# Or manually:
+cd native && cargo build --release
+CGO_ENABLED=1 LD_LIBRARY_PATH=native/target/release go test -v ./...
+```
+
+## Connection String
+
+Supports ADO.NET-style connection strings:
+
+```
+Server=host,port;UID=user;PWD=password;Database=dbname;TrustServerCertificate=yes
+```
+
+Supported keys:
+- `Server` / `Data Source` — host and optional port (comma-separated)
+- `Database` / `Initial Catalog`
+- `UID` / `User ID` / `User`
+- `PWD` / `Password`
+- `TrustServerCertificate` — `yes`/`true` to skip certificate validation
 
 ## License
 
